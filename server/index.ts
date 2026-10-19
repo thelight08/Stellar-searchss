@@ -24,6 +24,35 @@ import {
   AMOUNT_STROOPS
 } from '../shared/constants.js'
 
+// Serper.dev response shapes (their API returns untyped JSON)
+interface SerperSearchItem {
+  title?: string
+  link?: string
+  snippet?: string
+  date?: string
+}
+interface SerperSearchResponse { organic?: SerperSearchItem[] }
+
+interface SerperImageItem {
+  title?: string
+  imageUrl?: string
+  thumbnailUrl?: string
+  link?: string
+  imageWidth?: number
+  imageHeight?: number
+}
+interface SerperImagesResponse { images?: SerperImageItem[] }
+
+interface SerperNewsItem {
+  title?: string
+  link?: string
+  snippet?: string
+  source?: string
+  date?: string
+  imageUrl?: string
+}
+interface SerperNewsResponse { news?: SerperNewsItem[] }
+
 dotenv.config()
 
 const PORT = process.env.PORT || 3001
@@ -252,6 +281,7 @@ export function validateQuery(
   }
   // Strip null bytes and ASCII control characters (C0 + DEL) to prevent
   // log injection and odd Serper behavior.
+  // eslint-disable-next-line no-control-regex
   const cleanQ = q.replace(/[\x00-\x1F\x7F]/g, '').trim()
   if (!cleanQ) {
     return { ok: false, error: 'Query contains no valid characters.' }
@@ -278,6 +308,7 @@ function parseSuggestions(raw: string): string[] {
   const cleaned: string[] = []
   for (const item of parsed) {
     if (typeof item !== 'string') return []
+    // eslint-disable-next-line no-control-regex
     const trimmed = item.replace(/[\x00-\x1F\x7F]/g, '').trim()
     if (!trimmed) return []
     cleaned.push(trimmed.slice(0, MAX_SUGGESTION_LENGTH))
@@ -341,7 +372,7 @@ app.get('/search', async (req: Request, res: Response) => {
       return res.status(502).json({ error: `Serper.dev API error: ${serperRes.status}` })
     }
 
-const data: any = await serperRes.json()
+    const data = (await serperRes.json()) as SerperSearchResponse
     warnOnMissingFields('search', data, ['organic'])
     const latencyMs = Date.now() - t0
 
@@ -490,7 +521,7 @@ app.get('/images', async (req: Request, res: Response) => {
       return res.status(502).json({ error: `Serper.dev API error: ${serperRes.status}` })
     }
 
-const data: any = await serperRes.json()
+    const data = (await serperRes.json()) as SerperImagesResponse
     warnOnMissingFields('images', data, ['images'])
     const latencyMs = Date.now() - t0
 
@@ -600,7 +631,7 @@ app.get('/news', async (req: Request, res: Response) => {
       return res.status(502).json({ error: `Serper.dev API error: ${serperRes.status}` })
     }
 
-const data: any = await serperRes.json()
+    const data = (await serperRes.json()) as SerperNewsResponse
     warnOnMissingFields('news', data, ['news'])
     const latencyMs = Date.now() - t0
 
@@ -760,6 +791,7 @@ app.post('/summarize-url', freeRouteLimiter, async (req: Request, res: Response)
     if (typeof instruction !== 'string' || instruction.length > MAX_INSTRUCTION_LENGTH) {
       return res.status(400).json({ error: `instruction must be a string of at most ${MAX_INSTRUCTION_LENGTH} characters` })
     }
+    // eslint-disable-next-line no-control-regex
     const clean = instruction.replace(/[\x00-\x1F\x7F]/g, ' ').trim()
     if (clean) task = clean
   }
